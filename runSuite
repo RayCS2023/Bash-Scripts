@@ -1,0 +1,99 @@
+#!/bin/bash
+
+#prints error msg if number of args is wrong
+usage(){
+    echo "Usage: ${0} suite-file program" >&2
+}
+
+#print failed test results
+print_result() {
+    echo "Test failed: ${1}"
+    echo "Args:"
+    if ${3}; then
+        cat ${1}.args
+    fi 
+    echo "Input:"
+    if ${4}; then
+        cat ${1}.in
+    fi 
+    echo "Expected:" 
+    cat ${1}.out
+    echo "Actual:"
+    cat ${2}
+}
+
+#check number of args
+if [ ${#} -ne 2 ]; then
+    usage
+    exit 1
+fi
+
+#check if arg1 (file) exist and is readable
+if [ ! -r ${1} ]; then
+    echo "file ${1} does not exist or is not readable" >&2
+    exit 2
+fi
+
+# remove and create new error file
+if [  -e 'errorLog.out' ]; then
+    rm 'errorLog.out'
+fi
+ERRORLOG='./errorLog.out'
+
+#call arg2 (program) with each stem 
+for stem in $(cat ${1}); do
+    echo ${stem} 'Errors: ' 2>&1>>$ERRORLOG
+    if [ ! -r ${stem}.out ]; then
+        echo "${stem}.out is not readable or does not exist" >&2
+        exit 3
+    fi 
+
+    infileExist=false
+    argsExist=false
+
+    #create file and I dont check for access because tmp should be be readable and writeable always
+    TMPFILE=$(mktemp /tmp/tmp.XXXXXXXXXXXXX)
+
+    if [ ! -e ${stem}.args ]; then
+        argsExist=false
+
+        #write to tmp file
+        if [ -e ${stem}.in ]; then
+            infileExist=true
+            ./${2} < ${stem}.in > ${TMPFILE} 2>> $ERRORLOG
+        else
+            infileExist=false
+            ./${2} > ${TMPFILE} 2>> $ERRORLOG
+        fi
+
+        if [ "$( diff ${stem}.out ${TMPFILE} )" ]; then
+            print_result ${stem} ${TMPFILE} ${argsExist} ${infileExist}
+        else
+            echo "${stem} passed"
+        fi
+
+    elif [ -r ${stem}.args ]; then
+        argsExist=true
+
+        #write to tmp file
+        if [ -e ${stem}.in ]; then
+            infileExist=true
+            ./${2} $(cat ${stem}.args) < ${stem}.in > ${TMPFILE} 2>> $ERRORLOG
+        else
+            infileExist=false
+            ./${2} $(cat ${stem}.args) > ${TMPFILE} 2>> $ERRORLOG
+        fi
+
+        if [ "$( diff ${stem}.out ${TMPFILE} )" ]; then
+            print_result ${stem} ${TMPFILE} ${argsExist} ${infileExist}
+        else
+            echo "${stem} passed"
+        fi
+
+    else
+        echo "${stem}.args is not readable" >&2
+    fi
+
+    rm ${TMPFILE}
+    
+done

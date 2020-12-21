@@ -1,0 +1,52 @@
+#!/bin/bash
+
+#prints error msg if number of args is wrong
+usage(){
+    echo "Usage: ${0} suite-file program" >&2
+}
+
+#check number of args
+if [ ${#} -ne 2 ]; then
+    usage
+    exit 1
+fi
+
+#check if arg1 (file) exist and is readable
+
+if [ ! -r ${1} ]; then
+    echo "file ${1} does not exist or is not readable" >&2
+    exit 2
+fi
+
+# remove and create new error file
+if [  -e 'errorLog.txt' ]; then
+    rm 'errorLog.txt'
+fi
+ERRORLOG='./errorLog.txt'
+
+# using >> appends to file and > overwrite existing
+#call arg2 (program) with each stem 
+for stem in $(cat ${1}); do
+
+    #echo heading in errorLog
+    #2>&1 - echo direct to output we use this to redirect output to error
+    echo ${stem} 'Errors: ' 2>&1>>$ERRORLOG
+    if [ ! -e ${stem}.args ]; then
+
+        if [ -e ${stem}.in ]; then
+            ./${2} < ${stem}.in > ${stem}.out 2>> $ERRORLOG
+        else
+            ./${2} > ${stem}.out 2>> $ERRORLOG
+        fi
+    elif [ -r ${stem}.args ]; then
+        
+        if [ -e ${stem}.in ]; then
+            ./${2} $(cat ${stem}.args) < ${stem}.in > ${stem}.out 2>> $ERRORLOG
+        else
+            ./${2} $(cat ${stem}.args) > ${stem}.out 2>> $ERRORLOG
+        fi
+    else
+        echo "you do not have permission to read ${stem}.args" >&2
+    fi
+
+done
